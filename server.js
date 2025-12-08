@@ -23,26 +23,48 @@ function loadWords() {
 
   // Verb conjugation endings to filter out
   const conjugationEndings = [
-    // Passé simple
-    'AMES', 'ATES', 'ERENT', 'IMES', 'ITES', 'IRENT', 'UMES', 'UTES', 'URENT',
+    // Passé simple (1er groupe) - plural forms
+    'AMES', 'ATES', 'ERENT',
+    // Passé simple (2e et 3e groupe)
+    'IMES', 'ITES', 'IRENT', 'UMES', 'UTES', 'URENT',
     // Imparfait
-    'AIENT', 'IONS', 'IIONS', 'AIENT',
+    'AIENT', 'IIONS', 'IIEZ',
     // Futur
     'ERONS', 'EREZ', 'ERONT', 'IRONS', 'IREZ', 'IRONT',
     // Conditionnel
     'ERAIS', 'ERAIT', 'ERIONS', 'ERIEZ', 'ERAIENT',
     'IRAIS', 'IRAIT', 'IRIONS', 'IRIEZ', 'IRAIENT',
-    // Subjonctif
-    'ASSES', 'ASSENT', 'ISSES', 'ISSENT', 'USSES', 'USSENT',
-    // Participes
+    // Subjonctif imparfait
+    'ASSES', 'ASSENT', 'ASSIEZ', 'ASSIONS',
+    'ISSES', 'ISSENT', 'ISSIEZ', 'ISSIONS',
+    'USSES', 'USSENT', 'USSIEZ', 'USSIONS',
+    // Participes présents (2e groupe)
     'ISSANT', 'ISSANTE', 'ISSANTS', 'ISSANTES',
-    // Pluriels de participes passés
-    'EES', 'EEES',
-    // Verbes conjugués courants
-    'ERAI', 'ERAS', 'ERAIT',
-    'AIENT', 'ASSES', 'ASSIONS', 'ASSIEZ',
-    'ISSIONS', 'ISSIEZ',
-    'USSIONS', 'USSIEZ'
+    // Pluriels de participes passés féminins
+    'EEES',
+    // Futur/Conditionnel singulier
+    'ERAI', 'ERAS',
+    // Passé simple singulier patterns (verbes en -ER: -AI, -AS, -AT, -A)
+    'ISAI', 'ISAS', 'ISAT',
+    'IFIAI', 'IFIAS', 'IFIAT',
+    'STAI', 'STAS', 'STAT',
+    // Verbes en -YER passé simple
+    'OYAMES', 'OYATES', 'OYERENT',
+    'AYAMES', 'AYATES', 'AYERENT',
+    'UYAMES', 'UYATES', 'UYERENT'
+  ];
+
+  // Regex patterns for passé simple detection (more precise)
+  const passeSimplePatterns = [
+    /[BCDFGHJKLMNPQRSTVWXZ]{2}AI$/,  // consonant cluster + AI (CONTRISTA -> TRISTAI)
+    /[BCDFGHJKLMNPQRSTVWXZ]{2}AS$/,  // consonant cluster + AS
+    /[BCDFGHJKLMNPQRSTVWXZ]{2}AT$/,  // consonant cluster + AT
+    /[AEIOU][BCDFGHJKLMNPQRSTVWXZ]AI$/,  // vowel+consonant+AI
+    /[AEIOU][BCDFGHJKLMNPQRSTVWXZ]AS$/,  // vowel+consonant+AS
+    /[AEIOU][BCDFGHJKLMNPQRSTVWXZ]AT$/,  // vowel+consonant+AT
+    /FIAI$/,  // -fier verbs
+    /FIAS$/,
+    /FIAT$/,
   ];
 
   // Common English words to filter out (that aren't also French words)
@@ -223,7 +245,26 @@ function loadWords() {
     'WIND', 'WINDOW', 'WINTER', 'WISH', 'WITHIN', 'WON', 'WONDER', 'WONDERFUL',
     'WOOD', 'WORE', 'WORKED', 'WORKER', 'WORKERS', 'WORKING', 'WORRY', 'WORSE',
     'WORST', 'WORTH', 'WRITER', 'WRITERS', 'WRITING', 'WRITTEN', 'WROTE', 'YARD',
-    'YEAH', 'YELLOW', 'YES', 'YESTERDAY', 'YET', 'YORK'
+    'YEAH', 'YELLOW', 'YES', 'YESTERDAY', 'YET', 'YORK',
+    // Additional English words that slipped through
+    'COVENANT', 'DUPLEX', 'TOKENISE', 'TOKENIZE', 'SIESTA', 'FUYANT',
+    'SPEAKER', 'SPEAKERS', 'MEETING', 'MEETINGS', 'LEADER', 'LEADERS',
+    'SCANNER', 'SCANNERS', 'PRINTER', 'PRINTERS', 'BROWSER', 'BROWSERS',
+    'FOLDER', 'FOLDERS', 'TRACKER', 'TRACKERS', 'HACKER', 'HACKERS',
+    'CLUSTER', 'CLUSTERS', 'BUFFER', 'BUFFERS', 'ROUTER', 'ROUTERS',
+    'SERVER', 'SERVERS', 'PLAYER', 'PLAYERS', 'DEALER', 'DEALERS',
+    'TRAILER', 'TRAILERS', 'INSIDER', 'INSIDERS', 'OUTSIDER', 'OUTSIDERS',
+    'WEATHER', 'FEATHER', 'LEATHER', 'TOGETHER', 'WHETHER', 'NEITHER',
+    'EITHER', 'RATHER', 'GATHER', 'FATHER', 'MOTHER', 'BROTHER', 'OTHER',
+    'ANOTHER', 'BOTHER', 'SMOTHER', 'FURTHER', 'NORTHERN', 'SOUTHERN',
+    'WESTERN', 'EASTERN', 'PATTERN', 'LANTERN', 'CAVERN', 'TAVERN',
+    'MODERN', 'CONCERN', 'DISCERN', 'GOVERN', 'RETURN', 'SATURN',
+    'BUTTON', 'COTTON', 'MUTTON', 'KITTEN', 'MITTEN', 'BITTEN', 'WRITTEN',
+    'ROTTEN', 'FORGOTTEN', 'HIDDEN', 'SUDDEN', 'GARDEN', 'WARDEN', 'BURDEN',
+    'GOLDEN', 'MOLTEN', 'LISTEN', 'GLISTEN', 'MOISTEN', 'HASTEN', 'FASTEN',
+    'LOOSEN', 'CHOSEN', 'FROZEN', 'BROKEN', 'SPOKEN', 'WOKEN', 'TOKEN',
+    'CHICKEN', 'THICKEN', 'QUICKEN', 'SICKEN', 'WEAKEN', 'AWAKEN', 'TAKEN',
+    'SHAKEN', 'FORSAKEN', 'MISTAKEN', 'SUNKEN', 'DRUNKEN', 'SHRUNKEN'
   ]);
 
   words = content.split('\n')
@@ -233,6 +274,12 @@ function loadWords() {
       // Filter out words with conjugation endings
       for (const ending of conjugationEndings) {
         if (w.endsWith(ending) && w.length > ending.length + 2) {
+          return false;
+        }
+      }
+      // Filter out passé simple using regex patterns
+      for (const pattern of passeSimplePatterns) {
+        if (pattern.test(w)) {
           return false;
         }
       }
