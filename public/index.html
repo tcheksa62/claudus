@@ -9,7 +9,7 @@
 <body>
     <div class="container">
         <header>
-            <h1>🎯 CLAUDUS</h1>
+            <h1>CLAUDUS</h1>
             <p class="subtitle">Devinez le mot!</p>
         </header>
 
@@ -35,7 +35,6 @@
 
                 <label for="word-length">Longueur du mot:</label>
                 <select id="word-length">
-                    <option value="5">5 lettres</option>
                     <option value="6" selected>6 lettres</option>
                     <option value="7">7 lettres</option>
                     <option value="8">8 lettres</option>
@@ -49,75 +48,108 @@
         </div>
 
         <div id="multiplayer-lobby-screen" class="screen">
-            <h2>Lobby Multijoueur</h2>
-            <div class="lobby-form">
-                <label for="lobby-pseudo">Pseudo:</label>
-                <input type="text" id="lobby-pseudo" placeholder="Votre pseudo" maxlength="15">
+            <div class="lobby-header">
+                <h2>👥 Multijoueur</h2>
+                <p class="lobby-subtitle">Jouez avec vos amis en temps réel</p>
+            </div>
 
-                <div class="lobby-options">
-                    <div class="lobby-option">
-                        <h3>Créer une partie</h3>
+            <div class="lobby-pseudo-section">
+                <label for="lobby-pseudo">Votre pseudo</label>
+                <input type="text" id="lobby-pseudo" placeholder="Entrez votre pseudo..." maxlength="15">
+            </div>
 
-                        <label for="mp-word-count">Nombre de mots: <strong id="word-count-display">1</strong></label>
-                        <input type="range" id="mp-word-count" min="1" max="10" value="1" oninput="updateWordCountDisplay(this.value)">
-                        <div class="slider-labels">
-                            <span>1</span>
-                            <span>10</span>
+            <div class="lobby-cards">
+                <div class="lobby-card create-card">
+                    <div class="lobby-card-icon">🎮</div>
+                    <h3>Créer une partie</h3>
+
+                    <div class="lobby-card-content">
+                        <div class="config-row">
+                            <label for="mp-word-count">Nombre de mots</label>
+                            <div class="word-count-selector">
+                                <button class="count-btn" onclick="adjustWordCount(-1)">−</button>
+                                <span id="word-count-display">3</span>
+                                <button class="count-btn" onclick="adjustWordCount(1)">+</button>
+                            </div>
+                            <input type="hidden" id="mp-word-count" value="3">
                         </div>
 
-                        <label for="mp-word-length-mode">Mode de longueur:</label>
-                        <select id="mp-word-length-mode">
-                            <option value="random">Aléatoire</option>
-                            <option value="progressive">Progressif (6→10)</option>
-                            <option value="fixed-6">Fixe: 6 lettres</option>
-                            <option value="fixed-7">Fixe: 7 lettres</option>
-                            <option value="fixed-8">Fixe: 8 lettres</option>
-                            <option value="fixed-9">Fixe: 9 lettres</option>
-                            <option value="fixed-10">Fixe: 10 lettres</option>
-                        </select>
+                        <div class="config-row">
+                            <label for="mp-word-length-mode">Longueur des mots</label>
+                            <select id="mp-word-length-mode">
+                                <option value="random">🎲 Aléatoire</option>
+                                <option value="progressive">📈 Progressif (6→10)</option>
+                                <option value="fixed-6">6 lettres</option>
+                                <option value="fixed-7">7 lettres</option>
+                                <option value="fixed-8">8 lettres</option>
+                            </select>
+                        </div>
 
-                        <button class="btn-primary" onclick="createSession()">Créer</button>
-                    </div>
-
-                    <div class="lobby-divider">OU</div>
-
-                    <div class="lobby-option">
-                        <h3>Rejoindre une partie</h3>
-                        <input type="text" id="session-id-input" placeholder="Code de session" maxlength="6">
-                        <button class="btn-primary" onclick="joinSession()">Rejoindre</button>
+                        <button class="btn-primary btn-full" onclick="createSession()">
+                            Créer la partie
+                        </button>
                     </div>
                 </div>
 
-                <button class="btn-secondary" onclick="showMenu()">Retour</button>
+                <div class="lobby-card join-card">
+                    <div class="lobby-card-icon">🚀</div>
+                    <h3>Rejoindre</h3>
+
+                    <div class="lobby-card-content">
+                        <div class="config-row">
+                            <label for="session-id-input">Code de session</label>
+                            <input type="text" id="session-id-input" placeholder="ABC123" maxlength="6" class="session-code-input">
+                        </div>
+
+                        <button class="btn-primary btn-full" onclick="joinSession()">
+                            Rejoindre la partie
+                        </button>
+                    </div>
+                </div>
             </div>
+
+            <button class="btn-secondary btn-back" onclick="showMenu()">← Retour au menu</button>
         </div>
 
         <div id="waiting-room-screen" class="screen">
-            <h2>Salle d'attente</h2>
-            <div class="session-info">
-                <div class="session-code">
-                    <span>Code de session:</span>
+            <div class="waiting-room-header">
+                <h2>⏳ Salle d'attente</h2>
+            </div>
+
+            <div class="session-share-box">
+                <div class="session-code-big">
+                    <span class="session-label">Code de la partie</span>
                     <strong id="session-code-display"></strong>
-                    <button class="btn-copy" onclick="copySessionLink()">📋 Copier le lien</button>
                 </div>
-                <div id="game-config-display" class="game-config"></div>
+                <button class="btn-copy-big" onclick="copySessionLink()">
+                    📋 Copier le lien d'invitation
+                </button>
             </div>
 
-            <div class="players-list">
-                <h3>Joueurs connectés:</h3>
-                <div id="players-container"></div>
+            <div id="game-config-display" class="game-config-box"></div>
+
+            <div class="players-section">
+                <h3>👥 Joueurs (<span id="player-count">0</span>)</h3>
+                <div id="players-container" class="players-grid"></div>
             </div>
 
-            <div id="admin-controls" style="display: none;">
-                <div class="admin-badge">👑 Vous êtes l'administrateur</div>
-                <button class="btn-primary btn-large" onclick="startMultiplayerGame()">🎮 Démarrer la partie</button>
+            <div id="admin-controls" class="admin-section" style="display: none;">
+                <div class="admin-badge">👑 Vous êtes l'hôte</div>
+                <button class="btn-start-game" onclick="startMultiplayerGame()">
+                    🎮 Lancer la partie
+                </button>
             </div>
 
-            <div id="waiting-message" style="display: none;">
-                <p class="waiting-text">En attente du démarrage par l'administrateur...</p>
+            <div id="waiting-message" class="waiting-section" style="display: none;">
+                <div class="waiting-animation">
+                    <span class="dot"></span>
+                    <span class="dot"></span>
+                    <span class="dot"></span>
+                </div>
+                <p class="waiting-text">En attente du lancement par l'hôte...</p>
             </div>
 
-            <button class="btn-secondary" onclick="leaveSession()">Quitter</button>
+            <button class="btn-secondary btn-leave" onclick="leaveSession()">← Quitter la partie</button>
         </div>
 
         <div id="game-screen" class="screen">

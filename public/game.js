@@ -46,6 +46,15 @@ function updateWordCountDisplay(value) {
     document.getElementById('word-count-display').textContent = value;
 }
 
+function adjustWordCount(delta) {
+    const input = document.getElementById('mp-word-count');
+    const display = document.getElementById('word-count-display');
+    let value = parseInt(input.value) + delta;
+    value = Math.max(1, Math.min(10, value));
+    input.value = value;
+    display.textContent = value;
+}
+
 function resetGameState() {
     gameState = {
         mode: null,
@@ -324,6 +333,10 @@ function setupMultiplayerSocketHandlers() {
         updatePlayerAttemptInLiveView(data);
     });
 
+    socket.on('player-typing', (data) => {
+        updatePlayerTypingInLiveView(data);
+    });
+
     socket.on('player-won-word', (data) => {
         if (data.pseudo !== gameState.pseudo) {
             showMessage(`${data.pseudo} a trouvé le mot en ${data.attempts} essais!`, 'info');
@@ -414,6 +427,13 @@ function setupMultiplayerSocketHandlers() {
         showMessage('Nouvelle partie! En attente du démarrage...', 'info');
     });
 
+    socket.on('reconnect-error', (data) => {
+        console.log('Reconnect error:', data);
+        clearSessionFromLocalStorage();
+        showMessage(data.message, 'error');
+        showScreen('menu-screen');
+    });
+
     socket.on('reconnected-to-session', (data) => {
         console.log('Reconnected to session:', data);
 
@@ -431,10 +451,10 @@ function setupMultiplayerSocketHandlers() {
             showAdminControls(data.isAdmin);
 
             // Reset the start button if admin
-            const startButton = document.querySelector('#admin-controls .btn-large');
+            const startButton = document.querySelector('#admin-controls .btn-start-game');
             if (startButton) {
                 startButton.disabled = false;
-                startButton.textContent = '🎮 Démarrer la partie';
+                startButton.textContent = '🎮 Lancer la partie';
             }
 
             showScreen('waiting-room-screen');
@@ -446,6 +466,15 @@ function setupMultiplayerSocketHandlers() {
             gameState.totalWords = data.currentWord.totalWords;
 
             initializeGameBoard();
+
+            // Restore previous guesses if any
+            if (data.previousGuesses && data.previousGuesses.length > 0) {
+                data.previousGuesses.forEach((guessData, index) => {
+                    gameState.guesses.push(guessData.result);
+                    displayGuessResult(guessData.result, index);
+                });
+            }
+
             showScreen('game-screen');
 
             document.getElementById('player-name').textContent = gameState.pseudo;
@@ -508,12 +537,20 @@ function updatePlayersList(players) {
     const container = document.getElementById('players-container');
     container.innerHTML = '';
 
-    players.forEach(player => {
+    // Update player count
+    const playerCount = document.getElementById('player-count');
+    if (playerCount) playerCount.textContent = players.length;
+
+    players.forEach((player, index) => {
+        const isHost = index === 0; // First player is usually the host
         const card = document.createElement('div');
-        card.className = 'player-card';
+        card.className = `player-card${isHost ? ' is-host' : ''}`;
         card.innerHTML = `
-            <span class="player-name">${player.pseudo}</span>
-            <span class="player-status">Score: ${player.totalScore || 0}</span>
+            <div class="player-avatar">${isHost ? '👑' : '🎮'}</div>
+            <div class="player-info">
+                <span class="player-name">${player.pseudo}</span>
+                <span class="player-status">${isHost ? 'Hôte' : 'Prêt'}</span>
+            </div>
         `;
         container.appendChild(card);
     });
@@ -531,13 +568,49 @@ function initializeLiveView() {
             section.innerHTML = `
                 <div class="live-player-header">
                     <span class="live-player-name">${player.pseudo}</span>
-                    <span class="live-player-word">Mot 1/${gameState.totalWords || '?'}</span>
+                    <span class="live-player-word" id="live-word-${player.id}">Mot 1/${gameState.totalWords || '?'}</span>
                 </div>
+                <div class="live-player-typing" id="live-typing-${player.id}"></div>
                 <div class="live-player-attempts" id="live-attempts-${player.id}"></div>
             `;
             container.appendChild(section);
         }
     });
+}
+
+function updatePlayerTypingInLiveView(data) {
+    const typingContainer = document.getElementById(`live-typing-${data.playerId}`);
+    if (!typingContainer) return;
+
+    // Create typing row showing current input
+    typingContainer.innerHTML = '';
+
+    if (data.currentInput && data.currentInput.length > 0) {
+        const row = document.createElement('div');
+        row.className = 'live-typing-row';
+
+        // Show each letter being typed
+        for (let i = 0; i < data.wordLength; i++) {
+            const tileDiv = document.createElement('div');
+            tileDiv.className = 'live-tile typing';
+
+            if (i < data.currentInput.length) {
+                tileDiv.textContent = data.currentInput[i];
+                if (i === 0) {
+                    tileDiv.classList.add('first-letter');
+                }
+            }
+            row.appendChild(tileDiv);
+        }
+
+        typingContainer.appendChild(row);
+    }
+
+    // Update word number display
+    const wordElement = document.getElementById(`live-word-${data.playerId}`);
+    if (wordElement && data.wordNumber) {
+        wordElement.textContent = `Mot ${data.wordNumber}/${gameState.totalWords || '?'}`;
+    }
 }
 
 function updateLiveView(playersData) {
@@ -746,8 +819,24 @@ function handleKeyPress(e) {
         e.preventDefault();
 
         if (gameState.currentInput.length < gameState.wordLength) {
-            gameState.currentInput += e.key.toUpperCase();
+            const letter = e.key.toUpperCase();
+            // Skip if typing the first letter and it matches the revealed first letter
+            if (gameState.currentInput.length === 1 &&
+                gameState.currentInput === gameState.firstLetter &&
+                letter === gameState.firstLetter) {
+                return;
+            }
+            gameState.currentInput += letter;
             updateCurrentRowInput();
+
+            // Broadcast typing to other players in multiplayer
+            if (gameState.mode === 'multiplayer' && socket) {
+                socket.emit('typing-update', {
+                    sessionId: gameState.sessionId,
+                    currentInput: gameState.currentInput,
+                    wordNumber: gameState.currentWordNumber
+                });
+            }
         }
     }
 }
@@ -841,19 +930,22 @@ async function submitGuess() {
 
 function displayGuess(result) {
     const rowIndex = gameState.guesses.length;
-    const row = document.getElementById('game-board').children[rowIndex];
+    displayGuessResult(result, rowIndex);
+}
 
-    // Store the current word number to check if we've moved to a new word
-    const currentWordNumber = gameState.currentWordNumber;
-    console.log('[DISPLAY-GUESS] rowIndex:', rowIndex, 'currentWordNumber:', currentWordNumber, 'currentInput before:', gameState.currentInput);
+// Display a guess result at a specific row (used for reconnection)
+function displayGuessResult(result, rowIndex) {
+    const row = document.getElementById('game-board').children[rowIndex];
+    if (!row) return;
+
+    // Save current word number to check if we're still on the same word after delay
+    const savedWordNumber = gameState.currentWordNumber;
 
     result.forEach((letterData, index) => {
         const tile = row.children[index];
         tile.textContent = letterData.letter;
         tile.classList.remove('prefilled', 'typing');
-        setTimeout(() => {
-            tile.classList.add(letterData.status);
-        }, index * 100);
+        tile.classList.add(letterData.status);
 
         if (letterData.status === 'correct') {
             gameState.correctLetters[index] = letterData.letter;
@@ -865,15 +957,11 @@ function displayGuess(result) {
     document.getElementById('attempt-count').textContent = (rowIndex + 1).toString();
 
     setTimeout(() => {
-        console.log('[DISPLAY-GUESS-DELAYED] Checking - stored word:', currentWordNumber, 'current word:', gameState.currentWordNumber, 'currentInput:', gameState.currentInput);
         // Only update if we're still on the same word
-        if (gameState.currentWordNumber === currentWordNumber) {
-            console.log('[DISPLAY-GUESS-DELAYED] Same word - updating display');
+        if (gameState.currentWordNumber === savedWordNumber) {
             updatePreviousRows();
             updateKeyboardDisplay();
             updateCurrentRowInput();
-        } else {
-            console.log('[DISPLAY-GUESS-DELAYED] Different word - skipping update');
         }
     }, result.length * 100 + 200);
 }
@@ -1070,6 +1158,7 @@ function displayLeaderboard(leaderboard) {
 
         let timeStr;
         let timeDisplay;
+        let statusClass = '';
 
         // Check if player has finished (either completed or eliminated)
         const hasFinished = player.scores && player.scores.length > 0 &&
@@ -1079,34 +1168,31 @@ function displayLeaderboard(leaderboard) {
             if (hasFinished) {
                 // Player was eliminated (reached max attempts)
                 timeStr = '❌ Éliminé';
-                timeDisplay = `<span style="color: #f44336;">${timeStr}</span>`;
+                timeDisplay = `<span class="eliminated">${timeStr}</span>`;
+                statusClass = 'eliminated';
             } else {
                 // Player is still playing
                 timeStr = '⏳ En cours';
-                timeDisplay = `<span style="color: #ff9800;">${timeStr}</span>`;
+                timeDisplay = `<span class="in-progress">${timeStr}</span>`;
+                statusClass = 'in-progress';
             }
         } else {
             const minutes = Math.floor(player.completionTime / 60000);
             const seconds = Math.floor((player.completionTime % 60000) / 1000);
-            timeStr = minutes > 0 ? `${minutes}min ${seconds}s` : `${seconds}s`;
-            timeDisplay = timeStr;
+            const ms = Math.floor((player.completionTime % 1000) / 10);
+            timeStr = minutes > 0 ? `${minutes}:${seconds.toString().padStart(2, '0')}.${ms.toString().padStart(2, '0')}` : `${seconds}.${ms.toString().padStart(2, '0')}s`;
+            timeDisplay = `<span class="completed">${timeStr}</span>`;
+            statusClass = 'completed';
         }
 
-        const rankEmoji = rank === 1 ? '🥇' : rank === 2 ? '🥈' : rank === 3 ? '🥉' : rank;
+        const rankEmoji = rank === 1 ? '🥇' : rank === 2 ? '🥈' : rank === 3 ? '🥉' : `#${rank}`;
 
         item.innerHTML = `
             <div class="leaderboard-rank rank-${rank}">${rankEmoji}</div>
             <div class="leaderboard-info">
                 <div class="leaderboard-name">${player.pseudo}</div>
-                <div class="leaderboard-stats">
-                    <div class="leaderboard-stat">
-                        <span>Score:</span>
-                        <strong>${player.totalScore}</strong>
-                    </div>
-                    <div class="leaderboard-stat">
-                        <span>Temps:</span>
-                        <strong>${timeDisplay}</strong>
-                    </div>
+                <div class="leaderboard-time ${statusClass}">
+                    ${timeDisplay}
                 </div>
             </div>
         `;
