@@ -1,0 +1,227 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Claudus - Word Game</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>🎯 CLAUDUS</h1>
+            <p class="subtitle">Devinez le mot!</p>
+        </header>
+
+        <div id="menu-screen" class="screen active">
+            <div class="menu-options">
+                <button class="menu-btn" onclick="startWordOfTheDay()">
+                    📅 Mot du Jour
+                </button>
+                <button class="menu-btn" onclick="showSoloConfig()">
+                    🎮 Solo
+                </button>
+                <button class="menu-btn" onclick="showMultiplayerLobby()">
+                    👥 Multijoueur
+                </button>
+            </div>
+        </div>
+
+        <div id="solo-config-screen" class="screen">
+            <h2>Configuration Solo</h2>
+            <div class="config-form">
+                <label for="solo-pseudo">Pseudo:</label>
+                <input type="text" id="solo-pseudo" placeholder="Votre pseudo" maxlength="15">
+
+                <label for="word-length">Longueur du mot:</label>
+                <select id="word-length">
+                    <option value="5">5 lettres</option>
+                    <option value="6" selected>6 lettres</option>
+                    <option value="7">7 lettres</option>
+                    <option value="8">8 lettres</option>
+                    <option value="9">9 lettres</option>
+                    <option value="10">10 lettres</option>
+                </select>
+
+                <button class="btn-primary" onclick="startSoloGame()">Démarrer</button>
+                <button class="btn-secondary" onclick="showMenu()">Retour</button>
+            </div>
+        </div>
+
+        <div id="multiplayer-lobby-screen" class="screen">
+            <h2>Lobby Multijoueur</h2>
+            <div class="lobby-form">
+                <label for="lobby-pseudo">Pseudo:</label>
+                <input type="text" id="lobby-pseudo" placeholder="Votre pseudo" maxlength="15">
+
+                <div class="lobby-options">
+                    <div class="lobby-option">
+                        <h3>Créer une partie</h3>
+
+                        <label for="mp-word-count">Nombre de mots: <strong id="word-count-display">1</strong></label>
+                        <input type="range" id="mp-word-count" min="1" max="10" value="1" oninput="updateWordCountDisplay(this.value)">
+                        <div class="slider-labels">
+                            <span>1</span>
+                            <span>10</span>
+                        </div>
+
+                        <label for="mp-word-length-mode">Mode de longueur:</label>
+                        <select id="mp-word-length-mode">
+                            <option value="random">Aléatoire</option>
+                            <option value="progressive">Progressif (6→10)</option>
+                            <option value="fixed-6">Fixe: 6 lettres</option>
+                            <option value="fixed-7">Fixe: 7 lettres</option>
+                            <option value="fixed-8">Fixe: 8 lettres</option>
+                            <option value="fixed-9">Fixe: 9 lettres</option>
+                            <option value="fixed-10">Fixe: 10 lettres</option>
+                        </select>
+
+                        <button class="btn-primary" onclick="createSession()">Créer</button>
+                    </div>
+
+                    <div class="lobby-divider">OU</div>
+
+                    <div class="lobby-option">
+                        <h3>Rejoindre une partie</h3>
+                        <input type="text" id="session-id-input" placeholder="Code de session" maxlength="6">
+                        <button class="btn-primary" onclick="joinSession()">Rejoindre</button>
+                    </div>
+                </div>
+
+                <button class="btn-secondary" onclick="showMenu()">Retour</button>
+            </div>
+        </div>
+
+        <div id="waiting-room-screen" class="screen">
+            <h2>Salle d'attente</h2>
+            <div class="session-info">
+                <div class="session-code">
+                    <span>Code de session:</span>
+                    <strong id="session-code-display"></strong>
+                    <button class="btn-copy" onclick="copySessionLink()">📋 Copier le lien</button>
+                </div>
+                <div id="game-config-display" class="game-config"></div>
+            </div>
+
+            <div class="players-list">
+                <h3>Joueurs connectés:</h3>
+                <div id="players-container"></div>
+            </div>
+
+            <div id="admin-controls" style="display: none;">
+                <div class="admin-badge">👑 Vous êtes l'administrateur</div>
+                <button class="btn-primary btn-large" onclick="startMultiplayerGame()">🎮 Démarrer la partie</button>
+            </div>
+
+            <div id="waiting-message" style="display: none;">
+                <p class="waiting-text">En attente du démarrage par l'administrateur...</p>
+            </div>
+
+            <button class="btn-secondary" onclick="leaveSession()">Quitter</button>
+        </div>
+
+        <div id="game-screen" class="screen">
+            <div class="game-layout">
+                <div id="multiplayer-live-view" class="multiplayer-live-view" style="display: none;">
+                    <h3>🎮 Joueurs en direct</h3>
+                    <div id="live-players-container"></div>
+                </div>
+
+                <div class="game-main">
+                    <div class="game-header">
+                        <div class="game-info">
+                            <span id="player-name"></span>
+                            <span id="game-mode"></span>
+                        </div>
+                        <button class="btn-secondary btn-quit" onclick="quitGame()">Quitter</button>
+                    </div>
+
+                    <div class="word-info">
+                        <div id="word-hint">Longueur: <strong id="first-letter"></strong> lettres</div>
+                        <div id="attempts">Tentatives: <span id="attempt-count">0</span>/6</div>
+                    </div>
+
+                    <div id="message-box" class="message-box"></div>
+
+                    <div id="game-board"></div>
+
+                    <div class="game-instructions">
+                        Tapez votre mot et appuyez sur Entrée pour valider
+                    </div>
+
+                    <div id="keyboard" class="keyboard">
+                <div class="keyboard-row">
+                    <button class="key">A</button>
+                    <button class="key">Z</button>
+                    <button class="key">E</button>
+                    <button class="key">R</button>
+                    <button class="key">T</button>
+                    <button class="key">Y</button>
+                    <button class="key">U</button>
+                    <button class="key">I</button>
+                    <button class="key">O</button>
+                    <button class="key">P</button>
+                </div>
+                <div class="keyboard-row">
+                    <button class="key">Q</button>
+                    <button class="key">S</button>
+                    <button class="key">D</button>
+                    <button class="key">F</button>
+                    <button class="key">G</button>
+                    <button class="key">H</button>
+                    <button class="key">J</button>
+                    <button class="key">K</button>
+                    <button class="key">L</button>
+                    <button class="key">M</button>
+                </div>
+                <div class="keyboard-row">
+                    <button class="key key-action" onclick="handleKeyboardEnter()">ENTRÉE</button>
+                    <button class="key">W</button>
+                    <button class="key">X</button>
+                    <button class="key">C</button>
+                    <button class="key">V</button>
+                    <button class="key">B</button>
+                    <button class="key">N</button>
+                    <button class="key key-action" onclick="handleKeyboardBackspace()">⌫</button>
+                </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div id="result-screen" class="screen">
+            <div class="result-content">
+                <h2 id="result-title"></h2>
+                <div id="result-stats"></div>
+                <div class="result-buttons">
+                    <button class="btn-primary" onclick="showMenu()">Menu Principal</button>
+                    <button class="btn-secondary" onclick="playAgain()">Rejouer</button>
+                </div>
+            </div>
+        </div>
+
+        <div id="post-game-lobby-screen" class="screen">
+            <h2>🏆 Partie Terminée</h2>
+
+            <div class="leaderboard-container">
+                <h3>Classement</h3>
+                <div id="leaderboard"></div>
+            </div>
+
+            <div class="replay-section">
+                <h3>Revoir les parties</h3>
+                <div id="player-replay-selector"></div>
+                <div id="replay-viewer"></div>
+            </div>
+
+            <div class="post-game-buttons">
+                <button class="btn-primary btn-large" onclick="returnToLobby()">🔙 Retour au lobby</button>
+                <button class="btn-secondary" onclick="showMenu()">Menu Principal</button>
+            </div>
+        </div>
+    </div>
+
+    <script src="/socket.io/socket.io.js"></script>
+    <script src="game.js"></script>
+</body>
+</html>
