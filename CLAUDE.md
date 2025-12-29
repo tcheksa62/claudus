@@ -28,7 +28,7 @@ Server runs on `http://localhost:3000` by default (configurable via PORT env var
 
 ### Backend (`server.js`)
 - Express server with Socket.IO for real-time multiplayer
-- Word dictionary loaded from `words.txt` (uppercase, filtered 5-10 letters)
+- Word dictionary loaded from `words.txt` (uppercase, 6-10 letters only)
 - Session management via in-memory Maps (expire after 1 hour):
   - `multiplayerSessions`: Multiplayer game state, players, scores
   - `soloSessions`: Solo game words
