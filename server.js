@@ -21,52 +21,6 @@ const soloSessions = new Map();
 function loadWords() {
   const content = fs.readFileSync('words.txt', 'utf-8');
 
-  // Verb conjugation endings to filter out
-  const conjugationEndings = [
-    // Passé simple (1er groupe) - plural forms
-    'AMES', 'ATES', 'ERENT',
-    // Passé simple (2e et 3e groupe)
-    'IMES', 'ITES', 'IRENT', 'UMES', 'UTES', 'URENT',
-    // Imparfait
-    'AIENT', 'IIONS', 'IIEZ',
-    // Futur
-    'ERONS', 'EREZ', 'ERONT', 'IRONS', 'IREZ', 'IRONT',
-    // Conditionnel
-    'ERAIS', 'ERAIT', 'ERIONS', 'ERIEZ', 'ERAIENT',
-    'IRAIS', 'IRAIT', 'IRIONS', 'IRIEZ', 'IRAIENT',
-    // Subjonctif imparfait
-    'ASSES', 'ASSENT', 'ASSIEZ', 'ASSIONS',
-    'ISSES', 'ISSENT', 'ISSIEZ', 'ISSIONS',
-    'USSES', 'USSENT', 'USSIEZ', 'USSIONS',
-    // Participes présents (2e groupe)
-    'ISSANT', 'ISSANTE', 'ISSANTS', 'ISSANTES',
-    // Pluriels de participes passés féminins
-    'EEES',
-    // Futur/Conditionnel singulier
-    'ERAI', 'ERAS',
-    // Passé simple singulier patterns (verbes en -ER: -AI, -AS, -AT, -A)
-    'ISAI', 'ISAS', 'ISAT',
-    'IFIAI', 'IFIAS', 'IFIAT',
-    'STAI', 'STAS', 'STAT',
-    // Verbes en -YER passé simple
-    'OYAMES', 'OYATES', 'OYERENT',
-    'AYAMES', 'AYATES', 'AYERENT',
-    'UYAMES', 'UYATES', 'UYERENT'
-  ];
-
-  // Regex patterns for passé simple detection (more precise)
-  const passeSimplePatterns = [
-    /[BCDFGHJKLMNPQRSTVWXZ]{2}AI$/,  // consonant cluster + AI (CONTRISTA -> TRISTAI)
-    /[BCDFGHJKLMNPQRSTVWXZ]{2}AS$/,  // consonant cluster + AS
-    /[BCDFGHJKLMNPQRSTVWXZ]{2}AT$/,  // consonant cluster + AT
-    /[AEIOU][BCDFGHJKLMNPQRSTVWXZ]AI$/,  // vowel+consonant+AI
-    /[AEIOU][BCDFGHJKLMNPQRSTVWXZ]AS$/,  // vowel+consonant+AS
-    /[AEIOU][BCDFGHJKLMNPQRSTVWXZ]AT$/,  // vowel+consonant+AT
-    /FIAI$/,  // -fier verbs
-    /FIAS$/,
-    /FIAT$/,
-  ];
-
   // Common English words to filter out (that aren't also French words)
   const englishWords = new Set([
     'ABOUT', 'AFTER', 'AGAIN', 'THEIR', 'THERE', 'THESE', 'THINK', 'THING', 'THINGS',
@@ -270,24 +224,9 @@ function loadWords() {
   words = content.split('\n')
     .map(w => w.trim().toUpperCase())
     .filter(w => w.length >= 6 && w.length <= 10)
-    .filter(w => {
-      // Filter out words with conjugation endings
-      for (const ending of conjugationEndings) {
-        if (w.endsWith(ending) && w.length > ending.length + 2) {
-          return false;
-        }
-      }
-      // Filter out passé simple using regex patterns
-      for (const pattern of passeSimplePatterns) {
-        if (pattern.test(w)) {
-          return false;
-        }
-      }
-      return true;
-    })
     .filter(w => !englishWords.has(w)); // Filter out English words
 
-  console.log(`Loaded ${words.length} words (filtered conjugations & English)`);
+  console.log(`Loaded ${words.length} words (filtered English)`);
   setWordOfTheDay();
 }
 
@@ -450,11 +389,24 @@ io.on('connection', (socket) => {
       });
       player = session.players.get(socket.id);
     } else {
-      // Existing player reconnecting - update their socket ID
+      // Existing player reconnecting - update their socket ID while preserving order
       const oldId = player.id;
-      session.players.delete(oldId);
-      player.id = socket.id;
-      session.players.set(socket.id, player);
+
+      // Store all players in order
+      const playersArray = Array.from(session.players.entries());
+
+      // Clear the map
+      session.players.clear();
+
+      // Re-add players in the same order, updating the reconnecting player's ID
+      for (const [key, p] of playersArray) {
+        if (key === oldId) {
+          player.id = socket.id;
+          session.players.set(socket.id, player);
+        } else {
+          session.players.set(key, p);
+        }
+      }
     }
 
     socket.join(sessionId);

@@ -15,7 +15,8 @@ let gameState = {
     letterStatus: {},
     gameStarted: false,
     soloScore: 0,
-    soloWordLength: 6
+    soloWordLength: 6,
+    wordHistory: [] // Historique des mots complétés en multijoueur
 };
 
 function showScreen(screenId) {
@@ -71,7 +72,8 @@ function resetGameState() {
         letterStatus: {},
         gameStarted: false,
         soloScore: 0,
-        soloWordLength: 6
+        soloWordLength: 6,
+        wordHistory: []
     };
 }
 
@@ -267,6 +269,7 @@ function setupMultiplayerSocketHandlers() {
             gameState.firstLetter = data.firstLetter;
             gameState.currentWordNumber = data.wordNumber;
             gameState.totalWords = data.totalWords;
+            gameState.wordHistory = []; // Réinitialiser l'historique au début de la partie
 
             console.log('[GAME-STARTED] Calling initializeGameBoard...');
             initializeGameBoard();
@@ -291,6 +294,13 @@ function setupMultiplayerSocketHandlers() {
             console.log('[GAME-STARTED] Calling initializeLiveView...');
             initializeLiveView();
             console.log('[GAME-STARTED] All setup complete!');
+
+            // Afficher le panneau d'historique
+            const historyPanel = document.getElementById('word-history-panel');
+            if (historyPanel) {
+                historyPanel.style.display = 'block';
+                updateWordHistoryDisplay();
+            }
         } catch (error) {
             console.error('[GAME-STARTED] Error during setup:', error);
         }
@@ -333,10 +343,6 @@ function setupMultiplayerSocketHandlers() {
         updatePlayerAttemptInLiveView(data);
     });
 
-    socket.on('player-typing', (data) => {
-        updatePlayerTypingInLiveView(data);
-    });
-
     socket.on('player-won-word', (data) => {
         if (data.pseudo !== gameState.pseudo) {
             showMessage(`${data.pseudo} a trouvé le mot en ${data.attempts} essais!`, 'info');
@@ -345,6 +351,11 @@ function setupMultiplayerSocketHandlers() {
 
     socket.on('next-word', (data) => {
         console.log('[NEXT-WORD] Received:', data);
+
+        // Sauvegarder le mot actuel dans l'historique avant de passer au suivant
+        if (gameState.currentWordNumber && gameState.guesses.length > 0) {
+            saveCurrentWordToHistory(data.failedPreviousWord);
+        }
 
         // Player is advancing to the next word
         gameState.wordLength = data.wordLength;
@@ -372,6 +383,9 @@ function setupMultiplayerSocketHandlers() {
 
         // Update the game mode display
         document.getElementById('game-mode').textContent = `👥 Mot ${data.wordNumber}/${data.totalWords}`;
+
+        // Mettre à jour l'affichage de l'historique
+        updateWordHistoryDisplay();
     });
 
     socket.on('player-changed-word', (data) => {
@@ -417,10 +431,10 @@ function setupMultiplayerSocketHandlers() {
         showAdminControls(gameState.isAdmin);
 
         // Reset the start button if it exists
-        const startButton = document.querySelector('#admin-controls .btn-large');
+        const startButton = document.querySelector('#admin-controls .btn-start-game');
         if (startButton) {
             startButton.disabled = false;
-            startButton.textContent = '🎮 Démarrer la partie';
+            startButton.textContent = '🎮 Lancer la partie';
         }
 
         showScreen('waiting-room-screen');
@@ -570,47 +584,11 @@ function initializeLiveView() {
                     <span class="live-player-name">${player.pseudo}</span>
                     <span class="live-player-word" id="live-word-${player.id}">Mot 1/${gameState.totalWords || '?'}</span>
                 </div>
-                <div class="live-player-typing" id="live-typing-${player.id}"></div>
                 <div class="live-player-attempts" id="live-attempts-${player.id}"></div>
             `;
             container.appendChild(section);
         }
     });
-}
-
-function updatePlayerTypingInLiveView(data) {
-    const typingContainer = document.getElementById(`live-typing-${data.playerId}`);
-    if (!typingContainer) return;
-
-    // Create typing row showing current input
-    typingContainer.innerHTML = '';
-
-    if (data.currentInput && data.currentInput.length > 0) {
-        const row = document.createElement('div');
-        row.className = 'live-typing-row';
-
-        // Show each letter being typed
-        for (let i = 0; i < data.wordLength; i++) {
-            const tileDiv = document.createElement('div');
-            tileDiv.className = 'live-tile typing';
-
-            if (i < data.currentInput.length) {
-                tileDiv.textContent = data.currentInput[i];
-                if (i === 0) {
-                    tileDiv.classList.add('first-letter');
-                }
-            }
-            row.appendChild(tileDiv);
-        }
-
-        typingContainer.appendChild(row);
-    }
-
-    // Update word number display
-    const wordElement = document.getElementById(`live-word-${data.playerId}`);
-    if (wordElement && data.wordNumber) {
-        wordElement.textContent = `Mot ${data.wordNumber}/${gameState.totalWords || '?'}`;
-    }
 }
 
 function updateLiveView(playersData) {
@@ -705,7 +683,7 @@ function startMultiplayerGame() {
 
     gameState.gameStarted = true;
 
-    const startButton = document.querySelector('#admin-controls .btn-large');
+    const startButton = document.querySelector('#admin-controls .btn-start-game');
     if (startButton) {
         startButton.disabled = true;
         startButton.textContent = 'Démarrage...';
@@ -828,15 +806,6 @@ function handleKeyPress(e) {
             }
             gameState.currentInput += letter;
             updateCurrentRowInput();
-
-            // Broadcast typing to other players in multiplayer
-            if (gameState.mode === 'multiplayer' && socket) {
-                socket.emit('typing-update', {
-                    sessionId: gameState.sessionId,
-                    currentInput: gameState.currentInput,
-                    wordNumber: gameState.currentWordNumber
-                });
-            }
         }
     }
 }
@@ -1277,6 +1246,67 @@ function showPlayerReplay(player, button) {
     });
 }
 
+function saveCurrentWordToHistory(failed) {
+    const wordData = {
+        wordNumber: gameState.currentWordNumber,
+        guesses: [...gameState.guesses],
+        found: !failed,
+        attempts: gameState.guesses.length
+    };
+    gameState.wordHistory.push(wordData);
+}
+
+function updateWordHistoryDisplay() {
+    const historyContainer = document.getElementById('word-history-container');
+    if (!historyContainer) return;
+
+    historyContainer.innerHTML = '';
+
+    if (gameState.wordHistory.length === 0) {
+        historyContainer.innerHTML = '<p class="history-empty">Aucun mot complété</p>';
+        return;
+    }
+
+    gameState.wordHistory.forEach((wordData) => {
+        const wordSection = document.createElement('div');
+        wordSection.className = 'history-word-section';
+
+        const header = document.createElement('div');
+        header.className = 'history-word-header';
+
+        const title = document.createElement('div');
+        title.className = 'history-word-title';
+        title.textContent = `Mot ${wordData.wordNumber}`;
+
+        const result = document.createElement('div');
+        result.className = `history-word-result ${wordData.found ? 'success' : 'failed'}`;
+        result.textContent = wordData.found ? `✓ ${wordData.attempts}` : '✗';
+
+        header.appendChild(title);
+        header.appendChild(result);
+        wordSection.appendChild(header);
+
+        const attemptsDiv = document.createElement('div');
+        attemptsDiv.className = 'history-attempts';
+
+        wordData.guesses.forEach((guessData) => {
+            const row = document.createElement('div');
+            row.className = 'history-attempt-row';
+
+            guessData.forEach((tile) => {
+                const tileDiv = document.createElement('div');
+                tileDiv.className = `history-tile ${tile.status}`;
+                row.appendChild(tileDiv);
+            });
+
+            attemptsDiv.appendChild(row);
+        });
+
+        wordSection.appendChild(attemptsDiv);
+        historyContainer.appendChild(wordSection);
+    });
+}
+
 function returnToLobby() {
     if (!gameState.sessionId || !socket) {
         showMenu();
@@ -1293,6 +1323,7 @@ function returnToLobby() {
     gameState.guesses = [];
     gameState.currentInput = '';
     gameState.letterStatus = {};
+    gameState.wordHistory = [];
 
     // Set flag to force staying in lobby even if game is ongoing
     gameState.forceStayInLobby = true;
